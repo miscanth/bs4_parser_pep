@@ -32,7 +32,6 @@ def whats_new(session):
         response = get_response(session, version_link)
         if response is None:
             continue
-
         soup = BeautifulSoup(response.text, features='lxml')
         h1 = find_tag(soup, 'h1')
         dl = find_tag(soup, 'dl')
@@ -92,6 +91,8 @@ def download(session):
     archive_path = downloads_dir / filename
 
     response = session.get(archive_link)
+    if response is None:
+        return
     with open(archive_path, 'wb') as file:
         file.write(response.content)
     logging.info(f'Архив был загружен и сохранён: {archive_path}')
@@ -103,38 +104,34 @@ def pep(session):
         return
     soup = BeautifulSoup(response.text, features='lxml')
     pep_dict = {}
-    overall_pep = 0
+    log_list = []
     results = [('Статус', 'Количество')]
     section_tag = find_tag(soup, 'section', attrs={'id': 'numerical-index'})
-    tbody_tags = section_tag.find_all('tbody')
-    for tbody_tag in tqdm(tbody_tags):
-        tr_tags = tbody_tag.find_all('tr', {'class': ('row-even', 'row-odd')})
-        for tr_tag in tr_tags:
-            a_tag = find_tag(tr_tag, 'a')
-            href = a_tag['href']
-            version_link = urljoin(PEP_URL, href)
-            response = get_response(session, version_link)
-            if response is None:
-                continue
-            soup = BeautifulSoup(response.text, features='lxml')
-            inner_abbr_tag = find_tag(soup, 'abbr')
-            inner_status = inner_abbr_tag.text
-            abbr_tag = find_tag(tr_tag, 'abbr')
-            if abbr_tag is not None:
-                overall_pep += 1
-                table_status = abbr_tag['title'].split(', ')[-1]
-                if table_status in pep_dict:
-                    pep_dict[table_status] += 1
-                else:
-                    pep_dict[table_status] = 1
-                if inner_status != table_status:
-                    logging.info(f'Есть несовпадающие статусы: '
-                                 f'{version_link} '
-                                 f'Статус в карточке: {inner_status} '
-                                 f'Ожидаемый статус: {table_status}')
-    for status, qty in pep_dict.items():
-        results.append((status, qty))
-    results.append(('Total', overall_pep))
+    tbody_tag = find_tag(section_tag, 'tbody')
+    tr_tags = tbody_tag.find_all('tr', {'class': ('row-even', 'row-odd')})
+    for tr_tag in tqdm(tr_tags):
+        a_tag = find_tag(tr_tag, 'a')
+        href = a_tag['href']
+        version_link = urljoin(PEP_URL, href)
+        response = get_response(session, version_link)
+        if response is None:
+            continue
+        soup = BeautifulSoup(response.text, features='lxml')
+        inner_abbr_tag = find_tag(soup, 'abbr')
+        inner_status = inner_abbr_tag.text
+        abbr_tag = find_tag(tr_tag, 'abbr')
+        if abbr_tag is not None:
+            table_status = abbr_tag['title'].split(', ')[-1]
+            pep_dict[table_status] = pep_dict.get(table_status, 0) + 1
+            if inner_status != table_status:
+                log_list.append(f'Есть несовпадающие статусы: '
+                                f'{version_link} '
+                                f'Статус в карточке: {inner_status} '
+                                f'Ожидаемый статус: {table_status}')
+    results.extend((status, qty) for status, qty in pep_dict.items())
+    results.append(('Total', sum(pep_dict.values())))
+    log_messages = '\n'.join(log_list)
+    logging.info(log_messages)
     return results
 
 
@@ -166,20 +163,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-"""for tbody_tag in tqdm(tbody_tags):
-        a_tags = tbody_tag.find_all('a')
-        for a in a_tags[::2]:
-            href = a['href']
-            version_link = urljoin(MAIN_PEP_URL, href)
-            title = a.text
-            response = get_response(session, version_link)
-            if response is None:
-                continue
-            soup = BeautifulSoup(response.text, features='lxml')
-            abbr_tag = find_tag(soup, 'abbr')
-            results.append((version_link, title, abbr_tag.text))"""
-"""for tbody_tag in tqdm(tbody_tags):
-    abbr_tags = tbody_tag.find_all('abbr')
-    for a in abbr_tags:
-        results.append((a['title'], ))"""
