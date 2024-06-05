@@ -49,7 +49,7 @@ python3.9 -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 ```
-cd scr
+cd src
 ```
 Посмотреть возможности программы:
 ```
